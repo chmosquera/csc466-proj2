@@ -7,24 +7,6 @@ Original file is located at
     https://colab.research.google.com/drive/1qw9ktmDdSpLdZfTVtl6yg3w54lpRIMWr
 """
 
-import pandas as pd
-
-FILE = "committee_utterances.tsv"
-path = "drive/My Drive/Colab Notebooks/466-proj2/"
-
-df = pd.read_csv(path + FILE, sep='\t')
-
-#Select a random 25% (1/4) of the content
-import random
-from pprint import pprint
-
-records = list(df.text)
-number_selected = len(records) // 16  #TODO CHANGE THIS VALUE TO 4
-selected_records = random.sample(records, number_selected) #get random sample of number_selected records without replacement
-
-utterances = [record for record in selected_records] #get all the utterance fields only (column #15) for clustering
-print("total number of points:",len(utterances))
-
 import nltk
 from nltk.stem import WordNetLemmatizer
 from nltk.tokenize import sent_tokenize, word_tokenize
@@ -72,11 +54,9 @@ import numpy as np
 import random, sys, copy
 from collections import Counter
 
-max_t = -1   # max itterations (ignores threshold) (-1 to unset)10
-
 def initCentroids(vec_data, k):
     centroidID = np.random.permutation(len(vec_data))[:k]
-    print(centroidID)
+    # print(centroidID)
     return [vec_data[cID] for cID in centroidID]
 
 def calculateDistance(v_dict, u_dict):
@@ -143,9 +123,8 @@ def calculateConvergence(k, t, M):
         v = list(M[t][i].values())
         u = list(M[t-1][i].values())
         diff = (np.mean(u) - np.mean(v)) ** 2
-        difference += diff
-        print("diff: ", diff)
-    print("difference: ", difference)
+        difference += diff    
+    print(difference)
     return difference
 
 def k_means(vec_data, k, e):
@@ -155,27 +134,10 @@ def k_means(vec_data, k, e):
     t = 0
     M[t] = initCentroids(vec_data, k)
 
-    # if max_t >= 0:        
-    #     while (t < max_t):
-    #         print("iteration: ", t)
-    #         t += 1
-    #         M.append([0 for i in range(0, k)])    # M needs t rows
-    #         C = []
-    #         for i in range(0, k):
-    #             C.append([])
-    #         # Centroid assignment
-    #         for point in vec_data:
-    #             clusterID = closestCentroid(point, k, M[t-1])                
-    #             C[clusterID].append(vec_data.index(point))    # keep track of the point's as indices
-    #         print(len(C), C)
-            
-    #         # Centroid update
-    #         for i in range(0, k):
-    #             new_centroid = recalculateCentroid(C[i], vec_data)
-    #             M[t][i] = new_centroid
-    # else:
-    while(calculateConvergence(k, t, M) < e):
-        print("iteration: ", t)
+    cluster = []
+    condition = True
+    while(condition):
+        # print("iteration: ", t)
         t += 1
         M.append([0 for i in range(0, k)])    # M needs t rows
         C = []
@@ -185,72 +147,28 @@ def k_means(vec_data, k, e):
         for point in vec_data:
             clusterID = closestCentroid(point, k, M[t-1])                
             C[clusterID].append(vec_data.index(point))    # keep track of the point's as indices
-        print(len(C), C)
         
         # Centroid update
         for i in range(0, k):
             new_centroid = recalculateCentroid(C[i], vec_data)
             M[t][i] = new_centroid 
+
+        cluster = C
+        condition = calculateConvergence(k, t, M) > e
     
-    return C
-
-data = selected_records
-vec_data = [getFeatures(text) for text in data]
-print(len(vec_data))
-# vec_data
-
-vec_data[:10]
-
-import time
-
-startTime = time.time()
-endTime = time.time()
-
-clusters = k_means(vec_data, 5, 1)
-
-print(round(endTime - startTime,3),'seconds')
-
-for IDX in range(0, len(clusters)):
-    print("Cluster ", IDX, " contains:")
-    samples = [vec_data[i] for i in clusters[IDX]]
-    print(samples)
-
-plt.scatter()
-
-from sklearn.decomposition import PCA
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.feature_extraction import DictVectorizer
-from sklearn.preprocessing import normalize
-
-
-### Vectorize features
-from sklearn.feature_extraction import DictVectorizer
-
-vectorizer = DictVectorizer()
-X_train_vec = vectorizer.fit_transform(map(getFeatures, data))
-
-# tf_idf_vectorizor = TfidfVectorizer(analyzer=getFeatures,
-#                              max_features = 20000)
-# tf_idf = tf_idf_vectorizor.fit_transform(data)
-# tf_idf_norm = normalize(tf_idf)
-# tf_idf_array = tf_idf_norm.toarray()
-
-X_train_vec.toarray()
-
-from sklearn.cluster import KMeans
-from sklearn import decomposition
-
-# sklearn_pca = decomposition.PCA(n_components = 2)
-
-# Y_sklearn = sklearn_pca.fit_transform(X_train_vec)
-kmeans = KMeans(n_clusters=5, max_iter=600, algorithm = 'auto')
-fitted = kmeans.fit(X_train_vec)
-
-# TEST
-inverse = vectorizer.inverse_transform(X_train_vec)
-inverse
+    return cluster
 
 # Takes a list of vect-dicts that describe the cluster, and converts the data to a list of their cluster labels
+
+def printClusters(clusters):
+    result = []
+    for IDX in range(0, len(clusters)):
+        print("Cluster ", IDX, " contains:")
+        samples = [vec_data[i] for i in clusters[IDX]]
+        print(samples)
+        result.append(samples)
+    return result
+    
 def getClusterLabel(item, clusters):
     for cluster in clusters:
         if item in cluster:
@@ -262,17 +180,46 @@ def summarizeClusters(clusters):
         summary.append(len(cluster))
     return [cid for cid in range(0, len(clusters))], summary
 
-summarizeClusters(clusters)
+import pandas as pd
 
-length = 0
-for cluster in clusters:
-    length += len(cluster)
-print(length)
+FILE = "committee_utterances.tsv"
+path = "drive/My Drive/Colab Notebooks/466-proj2/"
 
-record = vec_data[0]
-print(record)
-t_label = getClusterLabel(0, clusters)
-print(t_label)
+df = pd.read_csv(path + FILE, sep='\t')
+
+#Select a random 25% (1/4) of the content
+records = list(df.text)
+number_selected = len(records) // 16  #TODO CHANGE THIS VALUE TO 4
+selected_records = random.sample(records, number_selected) #get random sample of number_selected records without replacement
+
+data = selected_records
+
+# vectorize data
+vec_data = [getFeatures(text) for text in data]
+
+# k-means clustering
+K = 5
+E = .00000001 # threshold
+clusters = k_means(vec_data, K, E)
+
+cluster_labels, cluster_cnts = summarizeClusters(clusters)
+print("Cluster IDs: ", cluster_labels)
+print("# of items in each:")
+for idx in range(len(cluster_cnts)):
+    print(idx, "-", cluster_cnts[idx])
+
+"""#Evluation"""
+
+# Vectorize features
+from sklearn.feature_extraction import DictVectorizer
+
+vectorizer = DictVectorizer()
+X_vec = vectorizer.fit_transform(map(getFeatures, data))
+
+from sklearn.cluster import KMeans
+
+kmeans = KMeans(n_clusters=5, max_iter=600, algorithm = 'auto')
+fitted = kmeans.fit(X_vec)
 
 # set up contingency table
 contingency_table = []
@@ -280,7 +227,7 @@ for t in range(0, len(clusters)):
     row = [0 for c in range(0, kmeans.n_clusters)]
     contingency_table.append(row)
 
-inverse = vectorizer.inverse_transform(X_train_vec)
+inverse = vectorizer.inverse_transform(X_vec)
 
 # add counts to contingency table
 for item_idx in range(0, len(vec_data)):
@@ -289,18 +236,37 @@ for item_idx in range(0, len(vec_data)):
     if t_label is not None and c_label is not None:   # i have an error where some cluster labels are NONE
         contingency_table[t_label][c_label] +=1
 
-contingency_table
+from tabulate import tabulate
 
-print(fitted.labels_[:50])
+print(tabulate(contingency_table))
 
-tf_idf_vectorizor.inverse_transform(prediction)
+summarizeClusters(clusters)
 
-# Commented out IPython magic to ensure Python compatibility.
-import matplotlib.pyplot as plt
-# %matplotlib inline
-plt.style.use('fivethirtyeight')
+result = printClusters(clusters)
 
-plt.scatter(Y_sklearn[:, 0], Y_sklearn[:, 1], c=prediction, s=50, cmap='viridis')
+pprint(result[0])
 
-centers = fitted.cluster_centers_
-plt.scatter(centers[:, 0], centers[:, 1],c='black', s=300, alpha=0.6);
+from collections import Counter
+cluster_0 = {}
+for text_id in clusters[0]:
+    cluster_0 = Counter(vec_data[text_id]) + Counter(cluster_0)
+
+sorted(cluster_0.items(), key=lambda x: x[1], reverse=True)
+
+cluster_2 = {}
+for text_id in clusters[2]:
+    cluster_2 = Counter(vec_data[text_id]) + Counter(cluster_2)
+
+sorted(cluster_2.items(), key=lambda x: x[1], reverse=True)
+
+cluster_3 = {}
+for text_id in clusters[3]:
+    cluster_3 = Counter(vec_data[text_id]) + Counter(cluster_3)
+
+sorted(cluster_3.items(), key=lambda x: x[1], reverse=True)
+
+cluster_4 = {}
+for text_id in clusters[4]:
+    cluster_4 = Counter(vec_data[text_id]) + Counter(cluster_4)
+
+sorted(cluster_4.items(), key=lambda x: x[1], reverse=True)
