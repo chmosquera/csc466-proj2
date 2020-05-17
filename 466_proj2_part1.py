@@ -7,17 +7,12 @@ Original file is located at
     https://colab.research.google.com/drive/1qw9ktmDdSpLdZfTVtl6yg3w54lpRIMWr
 """
 
-path = "drive/My Drive/Colab Notebooks/466-proj2/"
-f = open(path + 'readme.txt', 'r')
-print(f.read())
-f.close()
-
-FILE = "committee_utterances.tsv"
-
 import pandas as pd
 
+FILE = "committee_utterances.tsv"
+path = "drive/My Drive/Colab Notebooks/466-proj2/"
+
 df = pd.read_csv(path + FILE, sep='\t')
-df
 
 #Select a random 25% (1/4) of the content
 import random
@@ -199,12 +194,12 @@ def k_means(vec_data, k, e):
     
     return C
 
-recalculateCentroid([22, 11, 8], vec_data)
-
 data = selected_records
 vec_data = [getFeatures(text) for text in data]
 print(len(vec_data))
 # vec_data
+
+vec_data[:10]
 
 import time
 
@@ -228,24 +223,75 @@ from sklearn.feature_extraction import DictVectorizer
 from sklearn.preprocessing import normalize
 
 
-vectorizer = DictVectorizer()
-vec_data = vectorizer.fit_transform(map(getFeatures, data))
+### Vectorize features
+from sklearn.feature_extraction import DictVectorizer
 
-tf_idf_vectorizor = TfidfVectorizer(analyzer=getFeatures,
-                             max_features = 20000)
-tf_idf = tf_idf_vectorizor.fit_transform(data)
-tf_idf_norm = normalize(tf_idf)
-tf_idf_array = tf_idf_norm.toarray()
+vectorizer = DictVectorizer()
+X_train_vec = vectorizer.fit_transform(map(getFeatures, data))
+
+# tf_idf_vectorizor = TfidfVectorizer(analyzer=getFeatures,
+#                              max_features = 20000)
+# tf_idf = tf_idf_vectorizor.fit_transform(data)
+# tf_idf_norm = normalize(tf_idf)
+# tf_idf_array = tf_idf_norm.toarray()
+
+X_train_vec.toarray()
 
 from sklearn.cluster import KMeans
 from sklearn import decomposition
 
-sklearn_pca = decomposition.PCA(n_components = 2)
+# sklearn_pca = decomposition.PCA(n_components = 2)
 
-Y_sklearn = sklearn_pca.fit_transform(tf_idf_array)
+# Y_sklearn = sklearn_pca.fit_transform(X_train_vec)
 kmeans = KMeans(n_clusters=5, max_iter=600, algorithm = 'auto')
-fitted = kmeans.fit(Y_sklearn)
-prediction = kmeans.predict(Y_sklearn)
+fitted = kmeans.fit(X_train_vec)
+
+# TEST
+inverse = vectorizer.inverse_transform(X_train_vec)
+inverse
+
+# Takes a list of vect-dicts that describe the cluster, and converts the data to a list of their cluster labels
+def getClusterLabel(item, clusters):
+    for cluster in clusters:
+        if item in cluster:
+            return clusters.index(cluster)
+
+def summarizeClusters(clusters):
+    summary = []
+    for cluster in clusters:
+        summary.append(len(cluster))
+    return [cid for cid in range(0, len(clusters))], summary
+
+summarizeClusters(clusters)
+
+length = 0
+for cluster in clusters:
+    length += len(cluster)
+print(length)
+
+record = vec_data[0]
+print(record)
+t_label = getClusterLabel(0, clusters)
+print(t_label)
+
+# set up contingency table
+contingency_table = []
+for t in range(0, len(clusters)):
+    row = [0 for c in range(0, kmeans.n_clusters)]
+    contingency_table.append(row)
+
+inverse = vectorizer.inverse_transform(X_train_vec)
+
+# add counts to contingency table
+for item_idx in range(0, len(vec_data)):
+    t_label = getClusterLabel(item_idx, clusters)
+    c_label = fitted.labels_[inverse.index(vec_data[item_idx])]
+    if t_label is not None and c_label is not None:   # i have an error where some cluster labels are NONE
+        contingency_table[t_label][c_label] +=1
+
+contingency_table
+
+print(fitted.labels_[:50])
 
 tf_idf_vectorizor.inverse_transform(prediction)
 
