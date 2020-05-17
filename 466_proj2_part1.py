@@ -24,7 +24,7 @@ import random
 from pprint import pprint
 
 records = list(df.text)
-number_selected = len(records) // 1000  #TODO CHANGE THIS VALUE TO 4
+number_selected = len(records) // 16  #TODO CHANGE THIS VALUE TO 4
 selected_records = random.sample(records, number_selected) #get random sample of number_selected records without replacement
 
 utterances = [record for record in selected_records] #get all the utterance fields only (column #15) for clustering
@@ -77,9 +77,7 @@ import numpy as np
 import random, sys, copy
 from collections import Counter
 
-max_t = 3   # max itterations (ignores threshold) (-1 to unset)10
-M = []
-M.append([0 for i in range(0, k)])
+max_t = -1   # max itterations (ignores threshold) (-1 to unset)10
 
 def initCentroids(vec_data, k):
     centroidID = np.random.permutation(len(vec_data))[:k]
@@ -144,62 +142,119 @@ def recalculateCentroid(cluster, data):
     # print("new_centroid: ", new_centroid)
     return new_centroid
 
+def calculateConvergence(k, t, M):
+    difference = 0
+    for i in range(0, k):
+        v = list(M[t][i].values())
+        u = list(M[t-1][i].values())
+        diff = (np.mean(u) - np.mean(v)) ** 2
+        difference += diff
+        print("diff: ", diff)
+    print("difference: ", difference)
+    return difference
+
 def k_means(vec_data, k, e):
+    M = []
+    M.append([0 for i in range(0, k)])
+
     t = 0
     M[t] = initCentroids(vec_data, k)
 
-    if max_t >= 0:        
-        while (t < max_t):
-            print("iteration: ", t)
-            t += 1
-            M.append([0 for i in range(0, k)])    # M needs t rows
-            C = []
-            for i in range(0, k):
-                C.append([])
-            # Centroid assignment
-            for point in vec_data:
-                clusterID = closestCentroid(point, k, M[t-1])                
-                C[clusterID].append(vec_data.index(point))    # keep track of the point's as indices
-            print(len(C), C)
+    # if max_t >= 0:        
+    #     while (t < max_t):
+    #         print("iteration: ", t)
+    #         t += 1
+    #         M.append([0 for i in range(0, k)])    # M needs t rows
+    #         C = []
+    #         for i in range(0, k):
+    #             C.append([])
+    #         # Centroid assignment
+    #         for point in vec_data:
+    #             clusterID = closestCentroid(point, k, M[t-1])                
+    #             C[clusterID].append(vec_data.index(point))    # keep track of the point's as indices
+    #         print(len(C), C)
             
-            # Centroid update
-            for i in range(0, k):
-                new_centroid = recalculateCentroid(C[i], vec_data)
-                M[t][i] = new_centroid
-
-k = 3
-centroids = initCentroids(vec_data, k)
-centroids
+    #         # Centroid update
+    #         for i in range(0, k):
+    #             new_centroid = recalculateCentroid(C[i], vec_data)
+    #             M[t][i] = new_centroid
+    # else:
+    while(calculateConvergence(k, t, M) < e):
+        print("iteration: ", t)
+        t += 1
+        M.append([0 for i in range(0, k)])    # M needs t rows
+        C = []
+        for i in range(0, k):
+            C.append([])
+        # Centroid assignment
+        for point in vec_data:
+            clusterID = closestCentroid(point, k, M[t-1])                
+            C[clusterID].append(vec_data.index(point))    # keep track of the point's as indices
+        print(len(C), C)
+        
+        # Centroid update
+        for i in range(0, k):
+            new_centroid = recalculateCentroid(C[i], vec_data)
+            M[t][i] = new_centroid 
+    
+    return C
 
 recalculateCentroid([22, 11, 8], vec_data)
-
-closestCentroid(vec_data[0], k, centroids)
 
 data = selected_records
 vec_data = [getFeatures(text) for text in data]
 print(len(vec_data))
-vec_data
+# vec_data
 
 import time
 
 startTime = time.time()
 endTime = time.time()
 
-k_means(vec_data, 3, 1)
+clusters = k_means(vec_data, 5, 1)
 
 print(round(endTime - startTime,3),'seconds')
 
-# M holds the centroid IDs
-M
+for IDX in range(0, len(clusters)):
+    print("Cluster ", IDX, " contains:")
+    samples = [vec_data[i] for i in clusters[IDX]]
+    print(samples)
 
-print(len(vec_data[0]), vec_data[0])
-print(len(vec_data[1]), vec_data[1])
-new_d = recalculateCentroid([0,1], vec_data)
-print(len(new_d), new_d)
+plt.scatter()
 
-dict1 = {'a':0, 'b':0}
-dict2 = dict1
-dict2['a'] += 1
+from sklearn.decomposition import PCA
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.feature_extraction import DictVectorizer
+from sklearn.preprocessing import normalize
 
-print("dict1: ", dict1)
-print("dict2: ", dict2)
+
+vectorizer = DictVectorizer()
+vec_data = vectorizer.fit_transform(map(getFeatures, data))
+
+tf_idf_vectorizor = TfidfVectorizer(analyzer=getFeatures,
+                             max_features = 20000)
+tf_idf = tf_idf_vectorizor.fit_transform(data)
+tf_idf_norm = normalize(tf_idf)
+tf_idf_array = tf_idf_norm.toarray()
+
+from sklearn.cluster import KMeans
+from sklearn import decomposition
+
+sklearn_pca = decomposition.PCA(n_components = 2)
+
+Y_sklearn = sklearn_pca.fit_transform(tf_idf_array)
+kmeans = KMeans(n_clusters=5, max_iter=600, algorithm = 'auto')
+fitted = kmeans.fit(Y_sklearn)
+prediction = kmeans.predict(Y_sklearn)
+
+tf_idf_vectorizor.inverse_transform(prediction)
+
+# Commented out IPython magic to ensure Python compatibility.
+import matplotlib.pyplot as plt
+# %matplotlib inline
+plt.style.use('fivethirtyeight')
+
+plt.scatter(Y_sklearn[:, 0], Y_sklearn[:, 1], c=prediction, s=50, cmap='viridis')
+
+centers = fitted.cluster_centers_
+plt.scatter(centers[:, 0], centers[:, 1],c='black', s=300, alpha=0.6);
