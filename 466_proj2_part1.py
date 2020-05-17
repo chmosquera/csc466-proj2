@@ -24,7 +24,7 @@ import random
 from pprint import pprint
 
 records = list(df.text)
-number_selected = len(records) // 100  #TODO CHANGE THIS VALUE TO 4
+number_selected = len(records) // 1000  #TODO CHANGE THIS VALUE TO 4
 selected_records = random.sample(records, number_selected) #get random sample of number_selected records without replacement
 
 utterances = [record for record in selected_records] #get all the utterance fields only (column #15) for clustering
@@ -59,7 +59,13 @@ def getFeatures(text):
     tokens = nltk.word_tokenize(text.lower())
     tot_cnt = len(tokens)
     for word in tokens:        
-        if word not in stop_words and word not in punctuation:
+        if word.isnumeric():
+            label = '[NUMBER]'
+            if label not in features:
+                features[label] = 1/float(tot_cnt)    
+            else:
+                features[label] += 1/float(tot_cnt)    
+        elif word not in stop_words and word not in punctuation:
             w = wordnet_lemmatizer.lemmatize(word, getPOS(word))
             if w not in features:
                 features[w] = 1/float(tot_cnt)
@@ -68,17 +74,17 @@ def getFeatures(text):
     return features
 
 import numpy as np
-import random, sys
+import random, sys, copy
 from collections import Counter
 
-max_t = 2   # max itterations (ignores threshold) (-1 to unset)
-k = 2
+max_t = 3   # max itterations (ignores threshold) (-1 to unset)10
 M = []
 M.append([0 for i in range(0, k)])
 
 def initCentroids(vec_data, k):
     centroidID = np.random.permutation(len(vec_data))[:k]
-    return [id for id in centroidID]
+    print(centroidID)
+    return [vec_data[cID] for cID in centroidID]
 
 def calculateDistance(v_dict, u_dict):
     v = list(v_dict.values())
@@ -92,37 +98,51 @@ def calculateDistance(v_dict, u_dict):
 # takes a vector dictionary and a set of all the keys
 # returns a new vector dictionary with all the keys
 def reshapeVectDict(vect_dict, keys):
-    old_shape = len(vect_dict)
+    result = copy.deepcopy(vect_dict)
     for key in keys:
-        if key not in vect_dict:
-            vect_dict[key] = 0.0
-    return vect_dict
+        if key not in result:
+            result[key] = 0.0
+    return result
 
 # For a given point, find the closest centroid from the list, return centroid's index
-def closestCentroid(point, centroids, data):
+def closestCentroid(point, k, data):
     # Get all the keys (words) in the point and centroids
     # This will be used to transform them to the same dimension so we can do math
     all_keys = []
     all_keys.extend(point)        
-    for centroid in centroids:        
-        all_keys.extend(data[centroid].keys())
+    for cID in range(0,k):        
+        all_keys.extend(data[cID].keys())
     all_keys = set(all_keys)
 
     closestCentroid = 0
     minDist = sys.maxsize
     point_reshape = reshapeVectDict(point, all_keys)
 
-    for cID in centroids:
+    # print()
+    # print("point: ", point_reshape)
+    for cID in range(0,k):
         centroid = data[cID]
         centroid_reshape = reshapeVectDict(centroid, all_keys)
         dist = calculateDistance(point_reshape, centroid_reshape)
 
+        # print("dist: ", dist, "centroid: ", centroid)
         if (dist < minDist):
             minDist = dist          
             closestCentroid = cID
 
+    # print("closestCentroid: ", closestCentroid, "minDist: ", minDist)
     return closestCentroid
 
+def recalculateCentroid(cluster, data):
+    new_centroid = {}
+    for idx in cluster:
+        point = data[idx]
+        new_centroid = dict(Counter(new_centroid) + Counter(point))
+
+    for key in new_centroid:
+        new_centroid[key] /= len(cluster)
+    # print("new_centroid: ", new_centroid)
+    return new_centroid
 
 def k_means(vec_data, k, e):
     t = 0
@@ -130,7 +150,7 @@ def k_means(vec_data, k, e):
 
     if max_t >= 0:        
         while (t < max_t):
-            print(t)
+            print("iteration: ", t)
             t += 1
             M.append([0 for i in range(0, k)])    # M needs t rows
             C = []
@@ -138,25 +158,48 @@ def k_means(vec_data, k, e):
                 C.append([])
             # Centroid assignment
             for point in vec_data:
-                clusterID = closestCentroid(point, M[t-1], vec_data)
-                index = M[t-1].index(clusterID)
-                C[index].append(point)
+                clusterID = closestCentroid(point, k, M[t-1])                
+                C[clusterID].append(vec_data.index(point))    # keep track of the point's as indices
+            print(len(C), C)
+            
             # Centroid update
-            # for i in range(0, k):
-            #     M[t][i] =
+            for i in range(0, k):
+                new_centroid = recalculateCentroid(C[i], vec_data)
+                M[t][i] = new_centroid
+
+k = 3
+centroids = initCentroids(vec_data, k)
+centroids
+
+recalculateCentroid([22, 11, 8], vec_data)
+
+closestCentroid(vec_data[0], k, centroids)
 
 data = selected_records
 vec_data = [getFeatures(text) for text in data]
 print(len(vec_data))
+vec_data
 
 import time
 
 startTime = time.time()
 endTime = time.time()
 
-k_means(vec_data, 2, 1)
+k_means(vec_data, 3, 1)
 
 print(round(endTime - startTime,3),'seconds')
 
 # M holds the centroid IDs
 M
+
+print(len(vec_data[0]), vec_data[0])
+print(len(vec_data[1]), vec_data[1])
+new_d = recalculateCentroid([0,1], vec_data)
+print(len(new_d), new_d)
+
+dict1 = {'a':0, 'b':0}
+dict2 = dict1
+dict2['a'] += 1
+
+print("dict1: ", dict1)
+print("dict2: ", dict2)
