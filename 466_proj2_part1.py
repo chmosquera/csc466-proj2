@@ -12,10 +12,10 @@ from nltk.stem import WordNetLemmatizer
 from nltk.tokenize import sent_tokenize, word_tokenize
 from nltk.corpus import stopwords 
 from nltk.corpus import wordnet 
-nltk.download('stopwords')
-nltk.download('punkt')
-nltk.download('wordnet')
-nltk.download('averaged_perceptron_tagger')
+# nltk.download('stopwords')
+# nltk.download('punkt')
+# nltk.download('wordnet')
+# nltk.download('averaged_perceptron_tagger')
 
 wordnet_lemmatizer = WordNetLemmatizer()
 stop_words = set(stopwords.words('english')) 
@@ -124,7 +124,7 @@ def calculateConvergence(k, t, M):
         u = list(M[t-1][i].values())
         diff = (np.mean(u) - np.mean(v)) ** 2
         difference += diff    
-    print(difference)
+    # print(difference)
     return difference
 
 def k_means(vec_data, k, e):
@@ -137,7 +137,7 @@ def k_means(vec_data, k, e):
     cluster = []
     condition = True
     while(condition):
-        # print("iteration: ", t)
+        print("iteration: ", t)
         t += 1
         M.append([0 for i in range(0, k)])    # M needs t rows
         C = []
@@ -155,11 +155,12 @@ def k_means(vec_data, k, e):
 
         cluster = C
         condition = calculateConvergence(k, t, M) > e
+
+        print(summarizeClusters(cluster))
     
     return cluster
 
 # Takes a list of vect-dicts that describe the cluster, and converts the data to a list of their cluster labels
-
 def printClusters(clusters):
     result = []
     for IDX in range(0, len(clusters)):
@@ -182,8 +183,10 @@ def summarizeClusters(clusters):
 
 import pandas as pd
 
-FILE = "committee_utterances.tsv"
-path = "drive/My Drive/Colab Notebooks/466-proj2/"
+# Main begins here
+FILE = sys.argv[1]
+# path = "drive/My Drive/Colab Notebooks/466-proj2/"
+path = ""
 
 df = pd.read_csv(path + FILE, sep='\t')
 
@@ -208,65 +211,65 @@ print("# of items in each:")
 for idx in range(len(cluster_cnts)):
     print(idx, "-", cluster_cnts[idx])
 
-"""#Evluation"""
+# """#Evluation"""
 
-# Vectorize features
-from sklearn.feature_extraction import DictVectorizer
+# # Vectorize features
+# from sklearn.feature_extraction import DictVectorizer
 
-vectorizer = DictVectorizer()
-X_vec = vectorizer.fit_transform(map(getFeatures, data))
+# vectorizer = DictVectorizer()
+# X_vec = vectorizer.fit_transform(map(getFeatures, data))
 
-from sklearn.cluster import KMeans
+# from sklearn.cluster import KMeans
 
-kmeans = KMeans(n_clusters=5, max_iter=600, algorithm = 'auto')
-fitted = kmeans.fit(X_vec)
+# kmeans = KMeans(n_clusters=5, max_iter=600, algorithm = 'auto')
+# fitted = kmeans.fit(X_vec)
 
-# set up contingency table
-contingency_table = []
-for t in range(0, len(clusters)):
-    row = [0 for c in range(0, kmeans.n_clusters)]
-    contingency_table.append(row)
+# # set up contingency table
+# contingency_table = []
+# for t in range(0, len(clusters)):
+#     row = [0 for c in range(0, kmeans.n_clusters)]
+#     contingency_table.append(row)
 
-inverse = vectorizer.inverse_transform(X_vec)
+# inverse = vectorizer.inverse_transform(X_vec)
 
-# add counts to contingency table
-for item_idx in range(0, len(vec_data)):
-    t_label = getClusterLabel(item_idx, clusters)
-    c_label = fitted.labels_[inverse.index(vec_data[item_idx])]
-    if t_label is not None and c_label is not None:   # i have an error where some cluster labels are NONE
-        contingency_table[t_label][c_label] +=1
+# # add counts to contingency table
+# for item_idx in range(0, len(vec_data)):
+#     t_label = getClusterLabel(item_idx, clusters)
+#     c_label = fitted.labels_[inverse.index(vec_data[item_idx])]
+#     if t_label is not None and c_label is not None:   # i have an error where some cluster labels are NONE
+#         contingency_table[t_label][c_label] +=1
 
-from tabulate import tabulate
+# from tabulate import tabulate
 
-print(tabulate(contingency_table))
+# print(tabulate(contingency_table))
 
-summarizeClusters(clusters)
+# summarizeClusters(clusters)
 
-result = printClusters(clusters)
+# result = printClusters(clusters)
 
-pprint(result[0])
+# pprint(result[0])
 
-from collections import Counter
-cluster_0 = {}
-for text_id in clusters[0]:
-    cluster_0 = Counter(vec_data[text_id]) + Counter(cluster_0)
+# from collections import Counter
+# cluster_0 = {}
+# for text_id in clusters[0]:
+#     cluster_0 = Counter(vec_data[text_id]) + Counter(cluster_0)
 
-sorted(cluster_0.items(), key=lambda x: x[1], reverse=True)
+# sorted(cluster_0.items(), key=lambda x: x[1], reverse=True)
 
-cluster_2 = {}
-for text_id in clusters[2]:
-    cluster_2 = Counter(vec_data[text_id]) + Counter(cluster_2)
+# cluster_2 = {}
+# for text_id in clusters[2]:
+#     cluster_2 = Counter(vec_data[text_id]) + Counter(cluster_2)
 
-sorted(cluster_2.items(), key=lambda x: x[1], reverse=True)
+# sorted(cluster_2.items(), key=lambda x: x[1], reverse=True)
 
-cluster_3 = {}
-for text_id in clusters[3]:
-    cluster_3 = Counter(vec_data[text_id]) + Counter(cluster_3)
+# cluster_3 = {}
+# for text_id in clusters[3]:
+#     cluster_3 = Counter(vec_data[text_id]) + Counter(cluster_3)
 
-sorted(cluster_3.items(), key=lambda x: x[1], reverse=True)
+# sorted(cluster_3.items(), key=lambda x: x[1], reverse=True)
 
-cluster_4 = {}
-for text_id in clusters[4]:
-    cluster_4 = Counter(vec_data[text_id]) + Counter(cluster_4)
+# cluster_4 = {}
+# for text_id in clusters[4]:
+#     cluster_4 = Counter(vec_data[text_id]) + Counter(cluster_4)
 
-sorted(cluster_4.items(), key=lambda x: x[1], reverse=True)
+# sorted(cluster_4.items(), key=lambda x: x[1], reverse=True)
