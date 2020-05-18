@@ -19,7 +19,7 @@ Get a subset of the data to include records from only the top N speakers
 """
 
 # Combine First and last name
-speaker+names = []
+names = []
 for index,row in df.iterrows():
     speaker = row['last'] + " " + row['first']
     names.append(speaker)
@@ -52,7 +52,11 @@ speaker_utter_cnt.sort(key=lambda tup: tup[1], reverse=True)
 
 top_N_speakers = [tup[0] for tup in speaker_utter_cnt[:N]]
 df_top_N = df_top_100[df_top_100.full_name.isin(top_N_speakers)]
-df_top_N
+
+print("Total speakers: ", N)
+print("(First, the top 100 speakers were chosen based on number of records in the dataset.")
+print("Then, we narrowed down the selection to the top ", N, " speakers based on number of utterances.)")
+print()
 
 """##Features"""
 
@@ -102,6 +106,12 @@ def mostCommon(texts, N):
     freqdist = freqdist.most_common()
     return freqdist[:N]
 
+def processWords(tokenized):
+    vocab = {}
+    for token in tokenized:
+        vocab[token] = True
+    return vocab
+
 def processSents(text):  # return [(sent, word_count)]
     sents = sent_tokenizer.tokenize(text)
     return [(sent, len(sent.split())) for sent in sents]
@@ -141,15 +151,22 @@ def getEntities(text):
 def processText(text):
     features = {}
 
+    cleaned = lemmatize(filterTokens(myTokenizer(text)))        
+
     if (PREPROCESS_STAGE):
-        cleaned = lemmatize(filterTokens(myTokenizer(text)))        
         svs = speakerVocabScore(cleaned, num_of_speakers, TOP_VOCAB)
         features.update(svs)
 
+    # word features
+    words = processWords(cleaned)
+    features.update(words)
+
+    # sentence features
     sent_lengths = [sent[1] for sent in processSents(text)]
     avg_sent = sum(sent_lengths) / len(sent_lengths)
     features['avg_sent'] = avg_sent
 
+    # entity features
     summary, entities = getEntities(text)
     features.update(summary)
     features.update(entities)
@@ -223,17 +240,25 @@ def split_train_test(data, splitpt, sample_size = 1.0):
     # print("test: old_length = ", old_len, " new_length = ", len(test))
     return train, test
 
+# setup train/test dataframes - empty
 train_df = pd.DataFrame(columns = df_top_N.columns)
 test_df = pd.DataFrame(columns = df_top_N.columns)
 
+# add to train/test dataframes
+SAMPLE_SIZE = .25
 for name in top_N_speakers:
     temp_df = df_top_N[df_top_N.full_name == name]  # only one speaker
 
-    train, test = split_train_test(temp_df, 0.8, .25)
+    train, test = split_train_test(temp_df, 0.8, SAMPLE_SIZE)
     train_df = pd.concat([train_df, train])
     test_df = pd.concat([test_df, test])
 
-print(len(X_train))
+print("Total points in dataset: ", len(df_top_N))
+print("Sample size: ", SAMPLE_SIZE)
+print("Total points in train: ", len(train_df))
+print("Total points in test: ", len(test_df))
+print("(For each speaker, their texts were split into 80% training and 20% testing)")
+print()
 
 labelencoder = LabelEncoder()
 
@@ -247,7 +272,7 @@ y_test = labelencoder.transform(test_df['full_name'])
 Extract features from the training set
 """
 
-PREPROCESS_STAGE = True
+PREPROCESS_STAGE = False
 TOP_VOCAB = {}
 
 if (PREPROCESS_STAGE):
@@ -263,26 +288,46 @@ if (PREPROCESS_STAGE):
                 # print(word, ":", TOP_VOCAB[word])
                 TOP_VOCAB[word].append(SPEAKER_SUMMARY[i]['ID'])
 
-sample = "And are the sole producer of 14 commodities in California. Including walnuts, which my family grows. And other products such as almonds and raisins. California's agricultural exports totaled $21 billion in 2013, representing 15% of the nation's total. What those figures show, is that farmers and ranchers are adapting."
-processText(sample)
-
-len(X_train)
+# sample = "And are the sole producer of 14 commodities in California. Including walnuts, which my family grows. And other products such as almonds and raisins. California's agricultural exports totaled $21 billion in 2013, representing 15% of the nation's total. What those figures show, is that farmers and ranchers are adapting."
+# processText(sample)
 
 ### Vectorize features
+print("vectorizing...", end = '')
 from sklearn.feature_extraction import DictVectorizer
 
 vectorizer = DictVectorizer()
 X_train_vec = vectorizer.fit_transform(map(processText, list(X_train)))
 X_test_vec = vectorizer.transform(map(processText, list(X_test)))
+print("done", )
 
 ### Build model
+print("training model...", end = '')
 from sklearn.naive_bayes import MultinomialNB
 
 model = MultinomialNB()
 model = model.fit(X_train_vec , y_train)
 
+print("done", )
+
 ### Accuracy Score
-print("Accuracy Scores:")
-print("train: ", model.score(X_train_vec, y_train))
-print("test:", model.score(X_test_vec, y_test))
-print("\n\n")
+print("====================================")
+print("Evaluation Metrics")
+print("====================================")
+from sklearn.metrics import f1_score, accuracy_score, recall_score, precision_score
+predicted = model.predict(X_test_vec)
+predicted_values = labelencoder.inverse_transform(predicted)
+true_values = labelencoder.inverse_transform(y_test)
+
+print("accuracy: ", accuracy_score(true_values, predicted_values))
+print("precision: ")
+print("   (macro): ", precision_score(true_values, predicted_values, average='macro', zero_division=0))
+print("   (micro): ", precision_score(true_values, predicted_values, average='micro', zero_division=0))
+print("   (weighted): ", precision_score(true_values, predicted_values, average='weighted', zero_division=0))
+print("recall: ")
+print("   (macro): ", recall_score(true_values, predicted_values, average='macro'))
+print("   (micro): ", recall_score(true_values, predicted_values, average='micro'))
+print("   (weighted): ", recall_score(true_values, predicted_values, average='weighted'))
+print("f1 score:")
+print("   (macro): ", f1_score(true_values, predicted_values, average='macro'))
+print("   (micro): ", f1_score(true_values, predicted_values, average='micro'))
+print("   (weighted): ", f1_score(true_values, predicted_values, average='weighted'))
